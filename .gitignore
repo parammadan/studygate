@@ -1,0 +1,11 @@
+.Rproj.user
+.Rhistory
+.RData
+artifacts/
+demo/work/
+*.tar.gz
+studygate.Rcheck/
+inst/doc
+doc
+Meta
+.DS_Store

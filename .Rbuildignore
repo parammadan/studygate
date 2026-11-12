@@ -1,0 +1,12 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.github$
+^data-raw$
+^scripts$
+^demo$
+^docs$
+^artifacts$
+^README\.md$
+^LICENSE\.md$
+^bin$
+^shiny$

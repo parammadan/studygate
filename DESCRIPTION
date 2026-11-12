@@ -1,0 +1,25 @@
+Package: studygate
+Type: Package
+Title: Study-Specific Validation Rules and Programmer Guidance for Clinical Analysis Datasets
+Version: 0.1.0
+Authors@R: person("Param", "Madan", role = c("aut", "cre"), email = "86084060+parammadan@users.noreply.github.com")
+Description: Turns a versioned, study-specific YAML specification into
+    deterministic validation checks for ADaM-style analysis datasets
+    (for example ADSL and ADAE), and explains every finding: the affected
+    records, expected versus observed values, why it matters, how to
+    investigate it, and the rule it came from. The same rule set drives
+    validation, release gating and programmer guidance, so a new study
+    reuses the engine by supplying a new specification. Data are never
+    modified. An independent research prototype: not a validated or
+    regulatory-certified tool and not a CDISC conformance checker. Example
+    data are synthetic.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.1)
+Imports: jsonlite, tools, utils, yaml
+Suggests: haven, knitr, rmarkdown, testthat (>= 3.0.0), withr
+Config/testthat/edition: 3
+VignetteBuilder: knitr
+LazyData: true
+Roxygen: list(markdown = TRUE)
+Config/roxygen2/version: 8.1.1
