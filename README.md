@@ -202,8 +202,8 @@ devtools::test()     # 80 tests, 236 expectations, 0 failures, 0 skips (local ru
   for `<=`, flipped category edges, blanks not treated as missing, not-evaluated counted as
   pass, wrong date comparison. Each one made the suite fail.
 - `R CMD check --no-manual`: Status OK (0 errors, 0 warnings, 0 notes) on macOS, R 4.6.1.
-  CI runs R CMD check on Ubuntu and macOS, the full suite with no skips allowed, the CLI exit
-  codes, and the demo script.
+  The CI workflow (`.github/workflows/ci.yml`) is configured to run R CMD check on Ubuntu and
+  macOS, the full suite with no skips allowed, the CLI exit codes, and the demo script.
 
 ## Demo
 
