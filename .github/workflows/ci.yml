@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: R CMD check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-pandoc@v2
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::rcmdcheck
+          needs: check
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          error-on: '"warning"'
+
+  tests-and-cli:
+    name: Tests (no skips allowed) + CLI on Linux
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::testthat, any::withr, any::haven, any::pkgload
+      - name: Run every test
+        run: |
+          Rscript -e '
+            r <- as.data.frame(testthat::test_local(".", reporter = "summary", stop_on_failure = FALSE))
+            line <- sprintf("tests %d | expectations %d | failed %d | errors %d | skipped %d",
+                            nrow(r), sum(r$nb), sum(r$failed), sum(r$error), sum(r$skipped))
+            cat("\n", line, "\n")
+            s <- Sys.getenv("GITHUB_STEP_SUMMARY")
+            if (nzchar(s)) cat("### Test suite\n\n`", line, "`\n", file = s, append = TRUE, sep = "")
+            if (sum(r$failed) + sum(r$error) + sum(r$skipped) > 0) quit(status = 1)'
+      - name: Install and run the CLI (exit codes are the contract)
+        run: |
+          R CMD INSTALL .
+          ./bin/studygate validate --spec inst/extdata/specs/study_b.yml --data inst/extdata/studies/study_b
+          set +e
+          ./bin/studygate validate --spec inst/extdata/specs/study_a.yml --data inst/extdata/studies/study_a > /dev/null
+          code=$?
+          set -e
+          test "$code" -eq 2 || { echo "expected exit 2 for a blocked gate, got $code"; exit 1; }
+      - name: Run the demo script end to end
+        run: DEMO_NO_PAUSE=1 ./scripts/demo.sh
