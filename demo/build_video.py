@@ -36,17 +36,17 @@ SCENES = [
     {"id": "s01", "kind": "card", "card": "title", "secs": 4.5,
      "caption": "StudyGate R: one versioned rule set drives validation, the release gate and programmer guidance."},
     {"id": "s02", "kind": "term", "sleep": 3.5,
-     "steps": [("scripts/spec_summary.R", 1.6, 0.9),
-               (f"{SG} validate --spec {SB} --data {DB} | tail -n 1", 0, 0.9)],
+     "steps": [("scripts/spec_summary.R", 1.6, 1.2),
+               (f"{SG} validate --spec {SB} --data {DB} | tail -n 1", 0, 1.6)],
      "caption": "1 · Reuse: two synthetic studies, two versioned specs (years vs months, severity vs grade, "
                 "30- vs 14-day window). Same package, no code changes. Study B passes."},
     {"id": "s03", "kind": "term", "sleep": 7.5,
-     "steps": [(f"{SG} validate --spec {SA} --data {DA} --out artifacts/before | sed -n '/^SGA-ADAE-004  /,/^GATE/p'", 0, 1.0)],
+     "steps": [(f"{SG} validate --spec {SA} --data {DA} --out artifacts/before | sed -n '/^SGA-ADAE-004  /,/^GATE/p'", 0, 1.6)],
      "caption": "2 · Failure: an ADAE record for SYN-A-011, who is not in ADSL. The finding names the record, "
                 "why it matters, what to check, the spec section, and R code to see the row."},
     {"id": "s04", "kind": "term", "sleep": 3.5,
-     "steps": [(f"scripts/apply_correction.R {DA} artifacts/study_a_fixed", 1.6, 0.8),
-               (f"{SG} validate --spec {SA} --data artifacts/study_a_fixed | tail -n 1", 0, 0.9)],
+     "steps": [(f"scripts/apply_correction.R {DA} artifacts/study_a_fixed", 1.6, 1.2),
+               (f"{SG} validate --spec {SA} --data artifacts/study_a_fixed | tail -n 1", 0, 1.6)],
      "caption": "3 · Resolution: after the query is answered, one documented correction is applied to a copy "
                 "of the source data. The same 21 rules rerun: gate PASS."},
     {"id": "s05", "kind": "term", "sleep": 4.0,
