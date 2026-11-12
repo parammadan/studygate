@@ -1,0 +1,13 @@
+#!/usr/bin/env Rscript
+# StudyGate command line. Uses the installed package; from a source checkout
+# without an installed copy it loads the package with pkgload.
+args <- commandArgs(trailingOnly = TRUE)
+if (!requireNamespace("studygate", quietly = TRUE)) {
+  file_arg <- grep("^--file=", commandArgs(FALSE), value = TRUE)
+  root <- normalizePath(file.path(dirname(sub("^--file=", "", file_arg)), ".."))
+  if (!requireNamespace("pkgload", quietly = TRUE)) {
+    stop("install studygate first: R CMD INSTALL ", root, call. = FALSE)
+  }
+  pkgload::load_all(root, quiet = TRUE, export_all = FALSE)
+}
+quit(status = studygate::studygate_cli(args), save = "no")
