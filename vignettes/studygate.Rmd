@@ -1,0 +1,151 @@
+---
+title: "Getting started with studygate"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with studygate}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+studygate checks whether analysis datasets are ready for analysis **before**
+tables are produced. The requirements live in a versioned YAML specification,
+and the same rules drive three things: validation, the release gate, and the
+guidance a programmer reads when something fails.
+
+All data in this vignette are **synthetic**.
+
+```{r}
+library(studygate)
+```
+
+## 1. A specification is the study's requirements, written once
+
+```{r}
+spec_a <- read_spec(studygate_example("study_a.yml"))
+spec_a
+head(list_rules(spec_a), 8)
+```
+
+A rule names a reusable **check type**, its parameters, a severity, and the
+three pieces of text a programmer needs when it fails: *why* it matters, how to
+*investigate*, and the *reference* it comes from.
+
+```{r}
+list_checks()[, c("check", "description")]
+```
+
+`read_spec()` checks the whole specification before any data are touched. A
+typo in a variable name, an unknown codelist, or an unquoted `Y`/`N` (which
+YAML reads as true/false) is reported up front, all problems at once:
+
+```{r}
+bad <- tempfile(fileext = ".yml")
+writeLines(c(
+  "schema_version: 1", "study: {id: DEMO}", "spec: {version: 1.0.0}",
+  "codelists: {NY: [Y, N]}",
+  "datasets: {ADSL: {variables: {SAFFL: {type: character}}}}",
+  "rules:",
+  "  - {id: R1, check: codelist, dataset: ADSL, params: {variable: SAFLF, codelist: NY},",
+  "     severity: error, why: w, guidance: g, reference: r}"), bad)
+tryCatch(read_spec(bad), studygate_spec_error = function(e) cat(conditionMessage(e)))
+```
+
+## 2. Validate
+
+```{r}
+res <- validate_study(study_a, spec_a)
+res
+```
+
+```{r}
+report_validation(res)
+```
+
+Every finding records the rule, the dataset, the row and a record key,
+expected and observed values, severity, whether it blocks release, and the
+rule's guidance and reference:
+
+```{r}
+t(as.data.frame(res))
+```
+
+## 3. Resolve and rerun
+
+studygate never edits data. After the data-management query is answered, the
+source is corrected and the **same** rules are rerun:
+
+```{r}
+fixed <- study_a
+fixed$ADAE$USUBJID[fixed$ADAE$USUBJID == "SYN-A-011"] <- "SYN-A-001"
+res2 <- validate_study(fixed, spec_a)
+res2
+compare_results(res, res2)
+```
+
+## 4. A different study, the same engine
+
+Study B is a synthetic pediatric study: age in months, pediatric age groups,
+weight-band dosing, a 1–5 toxicity grade instead of mild/moderate/severe, and
+a 14-day treatment-emergent window. No engine code changes; only the
+specification does.
+
+```{r}
+validate_study(study_b, studygate_example("study_b.yml"))
+```
+
+Judging Study B's data by Study A's rules shows why the specification
+matters. Ages in months break the adult range, and one late adverse event
+counts as treatment-emergent under Study A's 30-day window but not under
+Study B's 14-day window:
+
+```{r}
+wrong <- validate_study(study_b, spec_a)
+wrong$rules[wrong$rules$status != "pass", c("rule_id", "status", "detail")]
+```
+
+## 5. When a rule cannot run
+
+A rule that cannot run is never a pass. In the defects example, CD4 is stored
+as text (one value is `"<50"`), so the CD4 range rule is reported as
+*not evaluated*:
+
+```{r}
+d <- validate_study(study_a_defects, spec_a)
+d$rules[d$rules$status != "pass", c("rule_id", "status", "n_findings", "detail")]
+```
+
+## 6. Guidance for programmers, including those coming from SAS
+
+```{r}
+explain_rule(spec_a, "SGA-ADAE-009")
+```
+
+The SAS analogue is a hint for orientation. studygate does not run SAS.
+
+## 7. Evidence
+
+```{r}
+out <- write_validation_report(res2, file.path(tempdir(), "studygate-report"))
+basename(out)
+str(jsonlite::read_json(out[["evidence"]])[c("gate", "spec_version", "spec_md5", "evidence_id")])
+```
+
+The evidence id is a hash of the specification, the data fingerprints and the
+package version. The same inputs always give the same id, whenever they are
+run.
+
+## 8. From SAS datasets or the shell
+
+```{r, eval = requireNamespace("haven", quietly = TRUE)}
+dir <- system.file("extdata", "studies", "study_b", package = "studygate")
+names(read_study_datasets(dir, studygate_example("study_b.yml")))
+```
+
+```sh
+studygate validate --spec study_a.yml --data /path/to/xpt --out report/
+echo $?   # 0 = PASS, 2 = BLOCKED, 1 = specification or input error
+```
