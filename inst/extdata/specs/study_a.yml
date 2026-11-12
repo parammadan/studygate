@@ -1,0 +1,316 @@
+# StudyGate specification: Study A (SYNTHETIC)
+# Every requirement, section reference and study detail below is invented for
+# demonstration. "Analysis data specification" refers to a fictional document.
+schema_version: 1
+
+study:
+  id: SYN-HIV-A
+  title: Synthetic adult HIV treatment study
+  population: adults 18-75 years
+  synthetic: true
+
+spec:
+  version: 1.1.0
+  effective_date: "2026-11-01"
+  owner: Study A programming lead (fictional)
+  changes:
+    - version: 1.0.0
+      date: "2026-09-15"
+      summary: Initial rule set.
+    - version: 1.1.0
+      date: "2026-11-01"
+      summary: >
+        TEAE window confirmed as last dose + 30 days (rule SGA-ADAE-009);
+        CD4 plausibility check added as a non-blocking warning (SGA-ADSL-011).
+
+codelists:
+  SEX: ["M", "F"]
+  NY: ["Y", "N"]
+  ARM_A: ["Regimen 1", "Regimen 2"]
+  AESEV: ["MILD", "MODERATE", "SEVERE"]
+
+datasets:
+  ADSL:
+    description: Subject-level analysis dataset, one record per subject
+    key: [USUBJID]
+    variables:
+      STUDYID:  {type: character, required: true}
+      USUBJID:  {type: character, required: true}
+      SUBJID:   {type: character, required: true}
+      SITEID:   {type: character, required: true}
+      AGE:      {type: numeric,   required: true, unit: years}
+      AGEU:     {type: character, required: true}
+      AGEGR1:   {type: character, required: true}
+      SEX:      {type: character, required: true}
+      TRT01P:   {type: character, required: true}
+      TRT01A:   {type: character, required: true}
+      SAFFL:    {type: character, required: true}
+      TRTSDT:   {type: date,      required: true}
+      TRTEDT:   {type: date,      required: true}
+      CD4BL:    {type: numeric,   required: true}
+  ADAE:
+    description: Adverse event analysis dataset, one record per adverse event
+    key: [USUBJID, AESEQ]
+    variables:
+      STUDYID:  {type: character, required: true}
+      USUBJID:  {type: character, required: true}
+      AESEQ:    {type: numeric,   required: true}
+      AETERM:   {type: character, required: true}
+      AEDECOD:  {type: character, required: true}
+      AEBODSYS: {type: character, required: true}
+      AESEV:    {type: character, required: true}
+      AESER:    {type: character, required: true}
+      ASTDT:    {type: date,      required: true}
+      AENDT:    {type: date,      required: true}
+      TRTA:     {type: character, required: true}
+      TRTEMFL:  {type: character, required: true}
+
+rules:
+  # ---------------- ADSL ----------------
+  - id: SGA-ADSL-001
+    title: ADSL contains every required variable
+    check: required_variables
+    dataset: ADSL
+    severity: error
+    since: 1.0.0
+    why: Downstream programs and tables reference these variables by name; a missing variable stops them or, worse, is silently treated as missing.
+    guidance: Compare the dataset contents with section 2.1 of the specification and check whether the variable was dropped or renamed in the ADSL program.
+    reference: Study A analysis data specification v1.1.0, section 2.1 (synthetic)
+
+  - id: SGA-ADSL-002
+    title: ADSL variables have their specified types
+    check: variable_types
+    dataset: ADSL
+    severity: error
+    since: 1.0.0
+    why: A numeric value stored as text (for example a lab value "<50") cannot be summarised, and a date stored as text cannot be compared with other dates.
+    guidance: Check how the variable was read or derived. Do not coerce values blindly; censored or non-numeric results need a documented rule from the statistician.
+    reference: Study A analysis data specification v1.1.0, section 2.1 (synthetic)
+
+  - id: SGA-ADSL-003
+    title: One ADSL record per subject
+    check: unique_key
+    dataset: ADSL
+    severity: error
+    since: 1.0.0
+    why: Duplicate subjects double-count people in every denominator and make subject-level merges ambiguous.
+    guidance: Look for a many-to-one merge in the ADSL program (for example a repeated baseline record) and confirm the subject list with data management.
+    reference: Study A analysis data specification v1.1.0, section 2.2 (synthetic)
+
+  - id: SGA-ADSL-004
+    title: Core subject variables are populated
+    check: not_missing
+    dataset: ADSL
+    params:
+      variables: [STUDYID, USUBJID, AGE, SEX, SAFFL]
+    severity: error
+    since: 1.0.0
+    why: Every subject needs an identifier, demographics and a safety-population flag to be counted correctly.
+    guidance: Trace the missing value back to the source demographics data and raise a data query if it is missing there too.
+    reference: Study A analysis data specification v1.1.0, section 2.3 (synthetic)
+
+  - id: SGA-ADSL-005
+    title: Dosed subjects have actual treatment and treatment dates
+    check: not_missing
+    dataset: ADSL
+    params:
+      variables: [TRT01A, TRTSDT, TRTEDT]
+      where: {variable: SAFFL, equals: "Y"}
+    severity: error
+    since: 1.0.0
+    why: Treatment dates anchor study days and the treatment-emergent flag; without them adverse events cannot be classified.
+    guidance: Check the exposure data for this subject. A subject in the safety population must have at least one dose record.
+    reference: Study A analysis data specification v1.1.0, section 2.4 (synthetic)
+
+  - id: SGA-ADSL-006
+    title: SEX uses the study codelist
+    check: codelist
+    dataset: ADSL
+    params: {variable: SEX, codelist: SEX}
+    severity: error
+    since: 1.0.0
+    why: Tables group by coded values; a value outside the codelist forms its own row or drops out of the summary.
+    guidance: Map the collected value to the controlled term in the ADSL program, following the study's terminology mapping.
+    reference: Study A analysis data specification v1.1.0, codelist SEX (synthetic)
+
+  - id: SGA-ADSL-007
+    title: SAFFL is Y or N
+    check: codelist
+    dataset: ADSL
+    params: {variable: SAFFL, codelist: NY}
+    severity: error
+    since: 1.0.0
+    why: The safety population is selected with SAFFL = "Y"; any other value excludes the subject without warning.
+    guidance: Check the population-flag derivation in the ADSL program.
+    reference: Study A analysis data specification v1.1.0, section 2.5 (synthetic)
+
+  - id: SGA-ADSL-008
+    title: Actual treatment uses the study arms
+    check: codelist
+    dataset: ADSL
+    params: {variable: TRT01A, codelist: ARM_A}
+    severity: error
+    since: 1.0.0
+    why: Every summary is split by treatment; an unexpected arm label creates an extra column or loses subjects.
+    guidance: Check the arm-label mapping against the randomisation specification.
+    reference: Study A analysis data specification v1.1.0, codelist ARM_A (synthetic)
+
+  - id: SGA-ADSL-009
+    title: Age is within the adult eligibility range
+    check: range
+    dataset: ADSL
+    params: {variable: AGE, min: 18, max: 75}
+    severity: error
+    since: 1.0.0
+    why: An age outside the protocol's eligibility range points to a data error or an eligibility deviation that must be reviewed before analysis.
+    guidance: Confirm the birth date and consent date with data management; if the age is correct, the protocol deviation process applies.
+    reference: Study A protocol section 5.1 eligibility (synthetic)
+
+  - id: SGA-ADSL-010
+    title: Age group agrees with age
+    check: categorization
+    dataset: ADSL
+    params:
+      variable: AGEGR1
+      source: AGE
+      categories:
+        - {label: "18-34", lower: 18, upper: 35}
+        - {label: "35-49", lower: 35, upper: 50}
+        - {label: ">=50",  lower: 50}
+    severity: error
+    since: 1.0.0
+    why: Age-group subgroup tables are built from AGEGR1; a wrong group moves a subject into the wrong subgroup.
+    guidance: Check the cut points in the ADSL program against the specification (lower bound inclusive, upper bound exclusive).
+    reference: Study A analysis data specification v1.1.0, section 2.6 (synthetic)
+
+  - id: SGA-ADSL-011
+    title: Baseline CD4 count is plausible
+    check: range
+    dataset: ADSL
+    params: {variable: CD4BL, min: 0, max: 2000}
+    severity: warning
+    blocking: false
+    since: 1.1.0
+    why: Values outside 0-2000 cells/uL are rarely real and usually signal a unit or transcription problem.
+    guidance: Check the units and the source laboratory record. This is a plausibility warning and does not block release.
+    reference: Study A analysis data specification v1.1.0, section 2.7 (synthetic)
+
+  # ---------------- ADAE ----------------
+  - id: SGA-ADAE-001
+    title: ADAE contains every required variable
+    check: required_variables
+    dataset: ADAE
+    severity: error
+    since: 1.0.0
+    why: Safety tables and listings reference these variables by name.
+    guidance: Compare the dataset contents with section 3.1 of the specification.
+    reference: Study A analysis data specification v1.1.0, section 3.1 (synthetic)
+
+  - id: SGA-ADAE-002
+    title: ADAE variables have their specified types
+    check: variable_types
+    dataset: ADAE
+    severity: error
+    since: 1.0.0
+    why: Analysis dates stored as text cannot be compared with treatment dates, so the treatment-emergent flag cannot be checked.
+    guidance: Convert ISO 8601 text dates to numeric dates in the ADAE program and keep partial dates in the imputation rules.
+    reference: Study A analysis data specification v1.1.0, section 3.1 (synthetic)
+
+  - id: SGA-ADAE-003
+    title: One ADAE record per subject and sequence number
+    check: unique_key
+    dataset: ADAE
+    severity: error
+    since: 1.0.0
+    why: Duplicate adverse-event records inflate event counts.
+    guidance: Check for repeated source records or a merge that multiplied rows.
+    reference: Study A analysis data specification v1.1.0, section 3.2 (synthetic)
+
+  - id: SGA-ADAE-004
+    title: Every ADAE subject exists in ADSL
+    check: subject_in_parent
+    dataset: ADAE
+    params: {parent: ADSL, by: USUBJID}
+    severity: error
+    since: 1.0.0
+    why: An adverse event whose subject is not in ADSL has no treatment arm, population flag or dosing dates, so it is silently dropped from every safety table.
+    guidance: Check the subject identifier in the source AE data for a typo or transposition, and confirm with data management whether the subject was enrolled. Do not edit the analysis dataset by hand; correct the source and rerun.
+    reference: Study A analysis data specification v1.1.0, section 3.3 (synthetic)
+
+  - id: SGA-ADAE-005
+    title: ADAE treatment agrees with ADSL actual treatment
+    check: parent_consistency
+    dataset: ADAE
+    params:
+      parent: ADSL
+      by: USUBJID
+      variables: {TRTA: TRT01A}
+    severity: error
+    since: 1.0.0
+    why: Safety tables split events by TRTA; a value that disagrees with ADSL puts the event under the wrong arm.
+    guidance: TRTA should be carried from ADSL.TRT01A, not re-derived. Check the merge in the ADAE program.
+    reference: Study A analysis data specification v1.1.0, section 3.4 (synthetic)
+
+  - id: SGA-ADAE-006
+    title: Severity uses the study codelist
+    check: codelist
+    dataset: ADAE
+    params: {variable: AESEV, codelist: AESEV}
+    severity: error
+    since: 1.0.0
+    why: Severity tables group by exact coded value; "Severe" and "SEVERE" would be counted as different categories.
+    guidance: Controlled terms are case-sensitive. Map collected values to the codelist in the ADAE program.
+    reference: Study A analysis data specification v1.1.0, codelist AESEV (synthetic)
+
+  - id: SGA-ADAE-007
+    title: Seriousness is Y or N
+    check: codelist
+    dataset: ADAE
+    params: {variable: AESER, codelist: NY}
+    severity: error
+    since: 1.0.0
+    why: Serious adverse events are reported separately; an uncoded value hides them.
+    guidance: Check the seriousness mapping from the source data.
+    reference: Study A analysis data specification v1.1.0, codelist NY (synthetic)
+
+  - id: SGA-ADAE-008
+    title: AE end date is not before start date
+    check: date_order
+    dataset: ADAE
+    params: {start: ASTDT, end: AENDT}
+    severity: error
+    since: 1.0.0
+    why: An end date before the start date gives a negative duration and suggests a date entry or imputation error.
+    guidance: Compare both dates with the source record, and check date imputation if either date was partial.
+    reference: Study A analysis data specification v1.1.0, section 3.5 (synthetic)
+
+  - id: SGA-ADAE-009
+    title: Treatment-emergent flag follows the approved rule
+    check: treatment_emergent
+    dataset: ADAE
+    params:
+      flag: TRTEMFL
+      start: ASTDT
+      parent: ADSL
+      by: USUBJID
+      trt_start: TRTSDT
+      trt_end: TRTEDT
+      window_days: 30
+      missing_start: flag
+    severity: error
+    since: 1.1.0
+    why: The treatment-emergent flag decides which events appear in the primary safety tables.
+    guidance: Recompute the flag from ASTDT and the ADSL treatment dates. Events with no start date are flagged, per the conservative convention in the analysis plan.
+    reference: Study A statistical analysis plan v2.0, section 9.2, as amended (synthetic)
+
+  - id: SGA-ADAE-010
+    title: Reported and coded terms are populated
+    check: not_missing
+    dataset: ADAE
+    params:
+      variables: [AETERM, AEDECOD, AEBODSYS]
+    severity: error
+    since: 1.0.0
+    why: Events without a coded term cannot be summarised by system organ class and preferred term.
+    guidance: Check medical coding status for the record with data management.
+    reference: Study A analysis data specification v1.1.0, section 3.6 (synthetic)

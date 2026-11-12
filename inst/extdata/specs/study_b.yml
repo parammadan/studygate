@@ -1,0 +1,257 @@
+# StudyGate specification: Study B (SYNTHETIC)
+# Same engine as Study A, different requirements: age in months, pediatric
+# age groups, weight-band dosing, a 1-5 toxicity grade instead of severity,
+# and a 14-day treatment-emergent window. Everything here is invented.
+schema_version: 1
+
+study:
+  id: SYN-HIV-B
+  title: Synthetic pediatric HIV study
+  population: children 0 to under 18 years (age recorded in months)
+  synthetic: true
+
+spec:
+  version: 1.0.0
+  effective_date: "2026-10-20"
+  owner: Study B programming lead (fictional)
+  changes:
+    - version: 1.0.0
+      date: "2026-10-20"
+      summary: Initial rule set.
+
+codelists:
+  SEX: ["M", "F"]
+  NY: ["Y", "N"]
+  COHORT: ["Cohort 1", "Cohort 2"]
+  TOXGR: ["1", "2", "3", "4", "5"]
+
+datasets:
+  ADSL:
+    description: Subject-level analysis dataset, one record per child
+    key: [USUBJID]
+    variables:
+      STUDYID:  {type: character, required: true}
+      USUBJID:  {type: character, required: true}
+      SUBJID:   {type: character, required: true}
+      SITEID:   {type: character, required: true}
+      AGE:      {type: numeric,   required: true, unit: months}
+      AGEU:     {type: character, required: true}
+      AGEGR1:   {type: character, required: true}
+      SEX:      {type: character, required: true}
+      WEIGHTBL: {type: numeric,   required: true}
+      TRT01P:   {type: character, required: true}
+      TRT01A:   {type: character, required: true}
+      SAFFL:    {type: character, required: true}
+      TRTSDT:   {type: date,      required: true}
+      TRTEDT:   {type: date,      required: true}
+  ADAE:
+    description: Adverse event analysis dataset, one record per adverse event
+    key: [USUBJID, AESEQ]
+    variables:
+      STUDYID:  {type: character, required: true}
+      USUBJID:  {type: character, required: true}
+      AESEQ:    {type: numeric,   required: true}
+      AETERM:   {type: character, required: true}
+      AEDECOD:  {type: character, required: true}
+      AEBODSYS: {type: character, required: true}
+      AETOXGR:  {type: character, required: true}
+      AESER:    {type: character, required: true}
+      ASTDT:    {type: date,      required: true}
+      AENDT:    {type: date,      required: true}
+      TRTA:     {type: character, required: true}
+      TRTEMFL:  {type: character, required: true}
+
+rules:
+  - id: SGB-ADSL-001
+    title: ADSL contains every required variable
+    check: required_variables
+    dataset: ADSL
+    severity: error
+    why: Downstream programs reference these variables by name.
+    guidance: Compare the dataset contents with section 2.1 of the specification.
+    reference: Study B analysis data specification v1.0.0, section 2.1 (synthetic)
+
+  - id: SGB-ADSL-002
+    title: ADSL variables have their specified types
+    check: variable_types
+    dataset: ADSL
+    severity: error
+    why: Weight and age must be numeric to drive dose bands and age groups.
+    guidance: Check how the variable was read or derived; do not coerce values blindly.
+    reference: Study B analysis data specification v1.0.0, section 2.1 (synthetic)
+
+  - id: SGB-ADSL-003
+    title: One ADSL record per child
+    check: unique_key
+    dataset: ADSL
+    severity: error
+    why: Duplicate subjects double-count children in every denominator.
+    guidance: Look for a many-to-one merge in the ADSL program.
+    reference: Study B analysis data specification v1.0.0, section 2.2 (synthetic)
+
+  - id: SGB-ADSL-004
+    title: Core subject variables are populated
+    check: not_missing
+    dataset: ADSL
+    params:
+      variables: [STUDYID, USUBJID, AGE, SEX, SAFFL]
+    severity: error
+    why: Every child needs an identifier, demographics and a safety-population flag.
+    guidance: Trace the missing value back to the source demographics data.
+    reference: Study B analysis data specification v1.0.0, section 2.3 (synthetic)
+
+  - id: SGB-ADSL-005
+    title: Baseline weight is recorded for every dosed child
+    check: not_missing
+    dataset: ADSL
+    params:
+      variables: [WEIGHTBL, TRT01A, TRTSDT, TRTEDT]
+      where: {variable: SAFFL, equals: "Y"}
+    severity: error
+    why: Dosing in this study is by weight band, so a dosed child without a baseline weight cannot be assigned a dose band.
+    guidance: Check the baseline vital-signs record for the child and query the site if the weight was not collected.
+    reference: Study B analysis data specification v1.0.0, section 2.4 (synthetic)
+
+  - id: SGB-ADSL-006
+    title: SEX uses the study codelist
+    check: codelist
+    dataset: ADSL
+    params: {variable: SEX, codelist: SEX}
+    severity: error
+    why: Tables group by coded values.
+    guidance: Map the collected value to the controlled term.
+    reference: Study B analysis data specification v1.0.0, codelist SEX (synthetic)
+
+  - id: SGB-ADSL-007
+    title: Actual treatment uses the study cohorts
+    check: codelist
+    dataset: ADSL
+    params: {variable: TRT01A, codelist: COHORT}
+    severity: error
+    why: Every summary is split by cohort.
+    guidance: Check the cohort-label mapping.
+    reference: Study B analysis data specification v1.0.0, codelist COHORT (synthetic)
+
+  - id: SGB-ADSL-008
+    title: Age in months is within 0 to 215
+    check: range
+    dataset: ADSL
+    params: {variable: AGE, min: 0, max: 215}
+    severity: error
+    why: The study enrols children under 18 years; age is recorded in months, so a value above 215 is out of range (or recorded in the wrong unit).
+    guidance: Check AGEU and the birth date; an age in years entered as months is a common error.
+    reference: Study B protocol section 5.1 eligibility (synthetic)
+
+  - id: SGB-ADSL-009
+    title: Pediatric age group agrees with age in months
+    check: categorization
+    dataset: ADSL
+    params:
+      variable: AGEGR1
+      source: AGE
+      categories:
+        - {label: "<2 years",     lower: 0,   upper: 24}
+        - {label: "2-<6 years",   lower: 24,  upper: 72}
+        - {label: "6-<12 years",  lower: 72,  upper: 144}
+        - {label: "12-<18 years", lower: 144, upper: 216}
+    severity: error
+    why: Pediatric safety results are reported by age group; boundary errors (for example 72 months) move children between groups.
+    guidance: Check that cut points are in months and that lower bounds are inclusive.
+    reference: Study B analysis data specification v1.0.0, section 2.6 (synthetic)
+
+  - id: SGB-ADSL-010
+    title: Baseline weight is plausible for a child
+    check: range
+    dataset: ADSL
+    params: {variable: WEIGHTBL, min: 2, max: 100}
+    severity: warning
+    blocking: false
+    why: A weight outside 2-100 kg in this population usually signals a unit error (pounds or grams).
+    guidance: Check units in the source record. This is a plausibility warning and does not block release.
+    reference: Study B analysis data specification v1.0.0, section 2.7 (synthetic)
+
+  - id: SGB-ADAE-001
+    title: ADAE contains every required variable
+    check: required_variables
+    dataset: ADAE
+    severity: error
+    why: Safety tables reference these variables by name.
+    guidance: Compare the dataset contents with section 3.1 of the specification.
+    reference: Study B analysis data specification v1.0.0, section 3.1 (synthetic)
+
+  - id: SGB-ADAE-002
+    title: ADAE variables have their specified types
+    check: variable_types
+    dataset: ADAE
+    severity: error
+    why: Dates stored as text cannot be compared with treatment dates.
+    guidance: Convert ISO 8601 text dates to numeric dates in the ADAE program.
+    reference: Study B analysis data specification v1.0.0, section 3.1 (synthetic)
+
+  - id: SGB-ADAE-003
+    title: One ADAE record per subject and sequence number
+    check: unique_key
+    dataset: ADAE
+    severity: error
+    why: Duplicate records inflate event counts.
+    guidance: Check for repeated source records.
+    reference: Study B analysis data specification v1.0.0, section 3.2 (synthetic)
+
+  - id: SGB-ADAE-004
+    title: Every ADAE subject exists in ADSL
+    check: subject_in_parent
+    dataset: ADAE
+    params: {parent: ADSL}
+    severity: error
+    why: An event whose child is not in ADSL has no cohort or dosing dates and drops out of every safety table.
+    guidance: Check the subject identifier in the source AE data and confirm enrolment with data management.
+    reference: Study B analysis data specification v1.0.0, section 3.3 (synthetic)
+
+  - id: SGB-ADAE-005
+    title: ADAE treatment agrees with ADSL actual treatment
+    check: parent_consistency
+    dataset: ADAE
+    params:
+      parent: ADSL
+      variables: {TRTA: TRT01A}
+    severity: error
+    why: Events are summarised by TRTA.
+    guidance: Carry TRTA from ADSL.TRT01A.
+    reference: Study B analysis data specification v1.0.0, section 3.4 (synthetic)
+
+  - id: SGB-ADAE-006
+    title: Toxicity grade is 1 to 5
+    check: codelist
+    dataset: ADAE
+    params: {variable: AETOXGR, codelist: TOXGR}
+    severity: error
+    why: This study grades events on a 1-5 toxicity scale instead of mild/moderate/severe; grade 3 or higher drives the key safety summary.
+    guidance: Check the grade against the study's grading table version named in the protocol.
+    reference: Study B analysis data specification v1.0.0, codelist TOXGR (synthetic)
+
+  - id: SGB-ADAE-007
+    title: AE end date is not before start date
+    check: date_order
+    dataset: ADAE
+    params: {start: ASTDT, end: AENDT}
+    severity: error
+    why: A negative duration suggests a date entry or imputation error.
+    guidance: Compare both dates with the source record.
+    reference: Study B analysis data specification v1.0.0, section 3.5 (synthetic)
+
+  - id: SGB-ADAE-008
+    title: Treatment-emergent flag follows the approved 14-day rule
+    check: treatment_emergent
+    dataset: ADAE
+    params:
+      flag: TRTEMFL
+      start: ASTDT
+      parent: ADSL
+      trt_start: TRTSDT
+      trt_end: TRTEDT
+      window_days: 14
+      missing_start: flag
+    severity: error
+    why: The pediatric analysis plan uses a 14-day post-treatment window; using another study's window misclassifies late events.
+    guidance: Recompute the flag from ASTDT and the ADSL treatment dates with the 14-day window.
+    reference: Study B statistical analysis plan v1.0, section 8.3 (synthetic)
