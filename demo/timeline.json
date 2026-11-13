@@ -1,0 +1,70 @@
+[
+ {
+  "id": "s01",
+  "kind": "card",
+  "start": 0,
+  "duration": 4.5,
+  "realtime_ratio": null,
+  "commands": []
+ },
+ {
+  "id": "s02",
+  "kind": "term",
+  "start": 4.5,
+  "duration": 9.47,
+  "realtime_ratio": 0.979,
+  "commands": [
+   "scripts/spec_summary.R",
+   "./bin/studygate validate --spec inst/extdata/specs/study_b.yml --data inst/extdata/studies/study_b | tail -n 1"
+  ]
+ },
+ {
+  "id": "s03",
+  "kind": "term",
+  "start": 13.97,
+  "duration": 10.13,
+  "realtime_ratio": 1.014,
+  "commands": [
+   "./bin/studygate validate --spec inst/extdata/specs/study_a.yml --data inst/extdata/studies/study_a --out artifacts/before | sed -n '/^SGA-ADAE-004  /,/^GATE/p'"
+  ]
+ },
+ {
+  "id": "s04",
+  "kind": "term",
+  "start": 24.1,
+  "duration": 9.63,
+  "realtime_ratio": 0.968,
+  "commands": [
+   "scripts/apply_correction.R inst/extdata/studies/study_a artifacts/study_a_fixed",
+   "./bin/studygate validate --spec inst/extdata/specs/study_a.yml --data artifacts/study_a_fixed | tail -n 1"
+  ]
+ },
+ {
+  "id": "s05",
+  "kind": "term",
+  "start": 33.73,
+  "duration": 10.27,
+  "realtime_ratio": 0.995,
+  "commands": [
+   "sed -n '/^spec:/,/^codelists:/p' inst/extdata/specs/study_a.yml | head -n 12",
+   "cat artifacts/test-summary.txt",
+   "grep -E '\"(gate|spec_version|spec_md5|evidence_id)\"' artifacts/before/evidence.json"
+  ]
+ },
+ {
+  "id": "s06",
+  "kind": "image",
+  "start": 44.0,
+  "duration": 7.0,
+  "realtime_ratio": null,
+  "commands": []
+ },
+ {
+  "id": "s07",
+  "kind": "card",
+  "start": 51.0,
+  "duration": 5.0,
+  "realtime_ratio": null,
+  "commands": []
+ }
+]

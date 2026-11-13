@@ -1,5 +1,7 @@
 # StudyGate R
 
+[![CI](https://github.com/parammadan/studygate/actions/workflows/ci.yml/badge.svg)](https://github.com/parammadan/studygate/actions/workflows/ci.yml)
+
 **Study-specific validation rules and programmer guidance for clinical analysis datasets.**
 
 `studygate` is an R package that turns a versioned, study-specific YAML specification into
@@ -202,8 +204,8 @@ devtools::test()     # 80 tests, 236 expectations, 0 failures, 0 skips (local ru
   for `<=`, flipped category edges, blanks not treated as missing, not-evaluated counted as
   pass, wrong date comparison. Each one made the suite fail.
 - `R CMD check --no-manual`: Status OK (0 errors, 0 warnings, 0 notes) on macOS, R 4.6.1.
-  The CI workflow (`.github/workflows/ci.yml`) is configured to run R CMD check on Ubuntu and
-  macOS, the full suite with no skips allowed, the CLI exit codes, and the demo script.
+- CI (`.github/workflows/ci.yml`): R CMD check on Ubuntu and macOS, the full suite with no
+  skips allowed, the CLI exit codes, and the demo script. All green on the first public run.
 
 ## Demo
 
@@ -220,8 +222,11 @@ DEMO_NO_PAUSE=1 ./scripts/demo.sh   # runs the whole story; drop the variable to
 6. The same rules are rerun: gate PASS.
 7. Evidence JSON for the passing run.
 
-The recorded video (`demo/StudyGate_Demo.mp4`) is built from real terminal sessions by
-`python3 demo/build_video.py` (see `demo/narration.md`).
+**Video:** [`demo/StudyGate_Demo.mp4`](demo/StudyGate_Demo.mp4) (56 s, captions, no audio). It was built
+by `python3 demo/build_video.py` from real VHS terminal recordings. A real-time check rejects any
+take where frames were dropped (every scene in this take ran at 0.97–1.01× real time). The
+report scene is a scrolling screenshot of the `report.html` the failing run wrote. Narration
+script: `demo/narration.md`.
 
 ## How this differs from existing tools
 

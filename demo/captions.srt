@@ -1,0 +1,27 @@
+1
+00:00:00,200 --> 00:00:04,300
+StudyGate R: one versioned rule set drives validation, the release gate and programmer guidance.
+
+2
+00:00:04,700 --> 00:00:13,767
+1 · Reuse: two synthetic studies, two versioned specs (years vs months, severity vs grade, 30- vs 14-day window). Same package, no code changes. Study B passes.
+
+3
+00:00:14,167 --> 00:00:23,900
+2 · Failure: an ADAE record for SYN-A-011, who is not in ADSL. The finding names the record, why it matters, what to check, the spec section, and R code to see the row.
+
+4
+00:00:24,300 --> 00:00:33,533
+3 · Resolution: after the query is answered, one documented correction is applied to a copy of the source data. The same 21 rules rerun: gate PASS.
+
+5
+00:00:33,933 --> 00:00:43,800
+4 · Evidence: a versioned spec with a change log; the test suite (run by this build just before recording); and evidence JSON hashing spec + data + package version.
+
+6
+00:00:44,200 --> 00:00:50,800
+The exported HTML report from the failing run: finding, guidance, reference and evidence, ready for code review. (Synthetic data.)
+
+7
+00:00:51,200 --> 00:00:55,800
+StudyGate R: an independent research prototype. Synthetic data only; not a validated or regulatory tool.

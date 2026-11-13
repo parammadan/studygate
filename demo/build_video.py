@@ -31,12 +31,14 @@ SB = "inst/extdata/specs/study_b.yml"
 DA = "inst/extdata/studies/study_a"
 DB = "inst/extdata/studies/study_b"
 
-# steps: (command, pause after typing Enter, expected command runtime in seconds)
+# steps: (command, pause after Enter, measured command runtime in seconds).
+# The command runs DURING the pause (VHS keeps recording), so each pause must be
+# longer than the runtime; the extra is reading time for the output.
 SCENES = [
     {"id": "s01", "kind": "card", "card": "title", "secs": 4.5,
      "caption": "StudyGate R: one versioned rule set drives validation, the release gate and programmer guidance."},
-    {"id": "s02", "kind": "term", "sleep": 3.5,
-     "steps": [("scripts/spec_summary.R", 1.6, 1.2),
+    {"id": "s02", "kind": "term", "sleep": 4.5,
+     "steps": [("scripts/spec_summary.R", 3.0, 1.2),
                (f"{SG} validate --spec {SB} --data {DB} | tail -n 1", 0, 1.6)],
      "caption": "1 · Reuse: two synthetic studies, two versioned specs (years vs months, severity vs grade, "
                 "30- vs 14-day window). Same package, no code changes. Study B passes."},
@@ -44,8 +46,8 @@ SCENES = [
      "steps": [(f"{SG} validate --spec {SA} --data {DA} --out artifacts/before | sed -n '/^SGA-ADAE-004  /,/^GATE/p'", 0, 1.6)],
      "caption": "2 · Failure: an ADAE record for SYN-A-011, who is not in ADSL. The finding names the record, "
                 "why it matters, what to check, the spec section, and R code to see the row."},
-    {"id": "s04", "kind": "term", "sleep": 3.5,
-     "steps": [(f"scripts/apply_correction.R {DA} artifacts/study_a_fixed", 1.6, 1.2),
+    {"id": "s04", "kind": "term", "sleep": 4.0,
+     "steps": [(f"scripts/apply_correction.R {DA} artifacts/study_a_fixed", 3.0, 1.2),
                (f"{SG} validate --spec {SA} --data artifacts/study_a_fixed | tail -n 1", 0, 1.6)],
      "caption": "3 · Resolution: after the query is answered, one documented correction is applied to a copy "
                 "of the source data. The same 21 rules rerun: gate PASS."},
@@ -55,7 +57,7 @@ SCENES = [
                ("grep -E '\"(gate|spec_version|spec_md5|evidence_id)\"' artifacts/before/evidence.json", 0, 0.1)],
      "caption": "4 · Evidence: a versioned spec with a change log; the test suite (run by this build just before "
                 "recording); and evidence JSON hashing spec + data + package version."},
-    {"id": "s06", "kind": "image", "secs": 5.0,
+    {"id": "s06", "kind": "image", "secs": 7.0,
      "caption": "The exported HTML report from the failing run: finding, guidance, reference and evidence, "
                 "ready for code review. (Synthetic data.)"},
     {"id": "s07", "kind": "card", "card": "closing", "secs": 5.0,
@@ -87,7 +89,9 @@ def write_tape(scene):
              'Set Theme "Catppuccin Mocha"', "Set TypingSpeed 15ms", "Set Framerate 20",
              "Hide", "Type \"export PS1='$ ' PS2='> ' && renice -n 15 -p $$ >/dev/null && clear\"", "Enter",
              "Sleep 300ms", "Show"]
-    for cmd, pause, _ in scene["steps"]:
+    for cmd, pause, rt in scene["steps"]:
+        if rt and (pause or scene["sleep"]) <= rt:
+            sys.exit(f"{scene['id']}: pause after '{cmd[:30]}' must exceed its runtime {rt}s")
         lines += [f"Type {vhs_quote(cmd)}", "Enter"]
         if pause:
             lines.append(f"Sleep {pause}s")
@@ -168,6 +172,16 @@ def enc(extra_in, filt, out, dur=None):
     run(cmd + [str(out)])
 
 
+def content_bottom(png, w, h):
+    """Last pixel row that is not page-white, read with ffmpeg (no imaging library needed)."""
+    raw = subprocess.check_output(["ffmpeg", "-loglevel", "error", "-i", str(png), "-f", "rawvideo",
+                                   "-pix_fmt", "gray", "-"])
+    for row in range(h - 1, -1, -1):
+        if min(raw[row * w:(row + 1) * w]) < 240:
+            return row
+    return h
+
+
 def srt_time(t):
     ms = int(round(t * 1000)); h, ms = divmod(ms, 3600000); m, ms = divmod(ms, 60000); s, ms = divmod(ms, 1000)
     return f"{h:02}:{m:02}:{s:02},{ms:03}"
@@ -194,7 +208,8 @@ def main():
             d = probe(raw)
             # Real-time check: VHS drops frames under CPU load, which would make the clip play faster
             # than the session ran. Expected = typing (15 ms/char + Enter) + pauses + runtime + final sleep.
-            expected = sum(len(c) * 0.015 + 0.1 + p + rt for c, p, rt in sc["steps"]) + sc["sleep"]
+            # Commands run inside the pauses, so runtime is not added on top.
+            expected = sum(len(c) * 0.015 + 0.1 + p for c, p, _ in sc["steps"]) + sc["sleep"]
             sc["realtime_ratio"] = round(d / expected, 3)
             print(f"{sc['id']}: recorded {d:.2f}s, expected ~{expected:.2f}s (ratio {d / expected:.2f})")
             if not 0.9 <= d / expected <= 1.35:
@@ -206,13 +221,18 @@ def main():
             report = ROOT / "artifacts" / "before" / "report.html"
             if not report.exists():
                 sys.exit("artifacts/before/report.html missing: scene s03 must run first")
+            # One tall screenshot of the whole page (headless Chrome paints nothing when asked to
+            # jump to an #anchor), then a slow scroll from the gate to the evidence table.
             png = WORK / f"{sc['id']}_report.png"
-            shot(None, png, 1280, 633, url=report.as_uri() + "#findings", scale=1.5)   # 1920x950 px
+            shot(None, png, 1280, 2400, url=report.as_uri(), scale=1.5)              # 1920x3600 px
+            bottom = content_bottom(png, 1920, 3600) + 40
+            travel = max(0, min(bottom, 3600) - TERM_H)
             cap = WORK / f"{sc['id']}_cap.png"
-            shot(caption_html(sc["caption"], "SCREENSHOT OF THE<br>GENERATED report.html"), cap, W, H - TERM_H)
-            d = sc["secs"]
+            shot(caption_html(sc["caption"], "SCROLLING SCREENSHOT OF<br>THE GENERATED report.html"), cap, W, H - TERM_H)
+            d = sc["secs"]; hold = 1.0
+            y = f"'min(max(0,(t-{hold})/({d - 2 * hold})),1)*{travel}'"
             enc(["-loop", "1", "-framerate", "30", "-i", str(png), "-loop", "1", "-framerate", "30", "-i", str(cap)],
-                f"[0:v]scale={W}:{TERM_H},pad={W}:{H}:0:0:color={BG}[b];[b][1:v]overlay=0:{TERM_H},"
+                f"[0:v]crop={W}:{TERM_H}:0:{y},pad={W}:{H}:0:0:color={BG}[b];[b][1:v]overlay=0:{TERM_H},"
                 f"fade=t=in:st=0:d={FADE},fade=t=out:st={d - FADE:.3f}:d={FADE},format=yuv420p[v]", seg, d)
         else:
             png = WORK / f"{sc['id']}_card.png"; shot(card_html(sc["card"], test_line), png, W, H)
