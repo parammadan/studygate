@@ -1,0 +1,30 @@
+[
+ {
+  "id": "s01",
+  "text": "StudyGate is an R package that checks clinical analysis datasets before analysis."
+ },
+ {
+  "id": "s02",
+  "text": "Two synthetic studies. Adult: age in years, a thirty-day window. Pediatric: age in months, a fourteen-day window. Same package, different specifications. Study B passes."
+ },
+ {
+  "id": "s03",
+  "text": "In Study A, one adverse event belongs to a subject missing from the subject-level dataset. The gate blocks release, and explains why, what to check, and how to see the row in R."
+ },
+ {
+  "id": "s04",
+  "text": "Once the data query is answered, one documented correction goes onto a copy of the source data. The same twenty-one rules run again, and the gate passes."
+ },
+ {
+  "id": "s05",
+  "text": "The rules are versioned with a change log. Eighty tests pass, and each run records hashes of the spec and the data."
+ },
+ {
+  "id": "s06",
+  "text": "The same result is exported as an HTML report, ready for code review."
+ },
+ {
+  "id": "s07",
+  "text": "One rule set drives validation, the release gate, and programmer guidance. All data are synthetic."
+ }
+]

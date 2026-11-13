@@ -3,16 +3,18 @@
   "id": "s01",
   "kind": "card",
   "start": 0,
-  "duration": 4.5,
+  "duration": 6.07,
+  "voice": 5.16,
   "realtime_ratio": null,
   "commands": []
  },
  {
   "id": "s02",
   "kind": "term",
-  "start": 4.5,
-  "duration": 9.47,
-  "realtime_ratio": 0.979,
+  "start": 6.07,
+  "duration": 10.77,
+  "voice": 9.94,
+  "realtime_ratio": 0.989,
   "commands": [
    "scripts/spec_summary.R",
    "./bin/studygate validate --spec inst/extdata/specs/study_b.yml --data inst/extdata/studies/study_b | tail -n 1"
@@ -21,9 +23,10 @@
  {
   "id": "s03",
   "kind": "term",
-  "start": 13.97,
-  "duration": 10.13,
-  "realtime_ratio": 1.014,
+  "start": 16.83,
+  "duration": 11.17,
+  "voice": 10.24,
+  "realtime_ratio": 0.998,
   "commands": [
    "./bin/studygate validate --spec inst/extdata/specs/study_a.yml --data inst/extdata/studies/study_a --out artifacts/before | sed -n '/^SGA-ADAE-004  /,/^GATE/p'"
   ]
@@ -31,9 +34,10 @@
  {
   "id": "s04",
   "kind": "term",
-  "start": 24.1,
-  "duration": 9.63,
-  "realtime_ratio": 0.968,
+  "start": 28.0,
+  "duration": 9.97,
+  "voice": 8.83,
+  "realtime_ratio": 1.0,
   "commands": [
    "scripts/apply_correction.R inst/extdata/studies/study_a artifacts/study_a_fixed",
    "./bin/studygate validate --spec inst/extdata/specs/study_a.yml --data artifacts/study_a_fixed | tail -n 1"
@@ -42,9 +46,10 @@
  {
   "id": "s05",
   "kind": "term",
-  "start": 33.73,
-  "duration": 10.27,
-  "realtime_ratio": 0.995,
+  "start": 37.97,
+  "duration": 9.13,
+  "voice": 6.46,
+  "realtime_ratio": 0.998,
   "commands": [
    "sed -n '/^spec:/,/^codelists:/p' inst/extdata/specs/study_a.yml | head -n 12",
    "cat artifacts/test-summary.txt",
@@ -54,16 +59,18 @@
  {
   "id": "s06",
   "kind": "image",
-  "start": 44.0,
-  "duration": 7.0,
+  "start": 47.1,
+  "duration": 6.0,
+  "voice": 4.95,
   "realtime_ratio": null,
   "commands": []
  },
  {
   "id": "s07",
   "kind": "card",
-  "start": 51.0,
-  "duration": 5.0,
+  "start": 53.1,
+  "duration": 6.83,
+  "voice": 5.93,
   "realtime_ratio": null,
   "commands": []
  }

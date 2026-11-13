@@ -222,9 +222,9 @@ DEMO_NO_PAUSE=1 ./scripts/demo.sh   # runs the whole story; drop the variable to
 6. The same rules are rerun: gate PASS.
 7. Evidence JSON for the passing run.
 
-**Video:** [`demo/StudyGate_Demo.mp4`](demo/StudyGate_Demo.mp4) (56 s, captions, no audio). It was built
+**Video:** [`demo/StudyGate_Demo.mp4`](demo/StudyGate_Demo.mp4) (60 s, AI-generated voice-over plus captions). It was built
 by `python3 demo/build_video.py` from real VHS terminal recordings. A real-time check rejects any
-take where frames were dropped (every scene in this take ran at 0.97–1.01× real time). The
+take where frames were dropped (every scene in this take ran at 0.99–1.00× real time). The
 report scene is a scrolling screenshot of the `report.html` the failing run wrote. Narration
 script: `demo/narration.md`.
 

@@ -9,6 +9,10 @@ headless-Chrome screenshot of the report.html the failing run just wrote.
 Title and closing cards and the caption bar are rendered from HTML.
 
 Run from the repository root:   python3 demo/build_video.py
+Narration: if demo/voice/audio/<scene>.mp3 exist (made by demo/voice/make_voice.py, Kokoro
+TTS), each scene is lengthened to fit its line (terminal scenes by recording a longer real
+pause, never by freezing frames) and the voice is mixed in at the scene's start.
+
 Needs: vhs, ffmpeg/ffprobe, Google Chrome, R with studygate installed + haven.
 """
 import hashlib, html, json, os, shutil, subprocess, sys
@@ -24,6 +28,8 @@ REPO_URL = "github.com/parammadan/studygate"
 W, H, TERM_H = 1920, 1080, 950
 FADE = 0.3
 BG = "#1e1e2e"
+VOICE = DEMO / "voice" / "audio"
+LEAD, TAIL = 0.4, 0.5          # silence before and after each spoken line
 
 SG = "./bin/studygate"
 SA = "inst/extdata/specs/study_a.yml"
@@ -51,13 +57,13 @@ SCENES = [
                (f"{SG} validate --spec {SA} --data artifacts/study_a_fixed | tail -n 1", 0, 1.6)],
      "caption": "3 · Resolution: after the query is answered, one documented correction is applied to a copy "
                 "of the source data. The same 21 rules rerun: gate PASS."},
-    {"id": "s05", "kind": "term", "sleep": 4.0,
+    {"id": "s05", "kind": "term", "sleep": 2.8,
      "steps": [(f"sed -n '/^spec:/,/^codelists:/p' {SA} | head -n 12", 1.8, 0.1),
                ("cat artifacts/test-summary.txt", 1.4, 0.1),
                ("grep -E '\"(gate|spec_version|spec_md5|evidence_id)\"' artifacts/before/evidence.json", 0, 0.1)],
      "caption": "4 · Evidence: a versioned spec with a change log; the test suite (run by this build just before "
                 "recording); and evidence JSON hashing spec + data + package version."},
-    {"id": "s06", "kind": "image", "secs": 7.0,
+    {"id": "s06", "kind": "image", "secs": 6.0,
      "caption": "The exported HTML report from the failing run: finding, guidance, reference and evidence, "
                 "ready for code review. (Synthetic data.)"},
     {"id": "s07", "kind": "card", "card": "closing", "secs": 5.0,
@@ -133,7 +139,7 @@ Not affiliated with or endorsed by Harvard, CBAR or CDISC &middot; not a validat
 <div class="stat">{html.escape(test_line)} &middot; R CMD check: OK</div>
 <div class="url">{REPO_URL}</div>
 <div class="small">Synthetic data only. Not a CDISC conformance checker, not validated or regulatory-certified.<br>
-Not affiliated with or endorsed by Harvard, CBAR, ACTG, IMPAACT or CDISC.</div>"""
+Not affiliated with or endorsed by Harvard, CBAR, ACTG, IMPAACT or CDISC. Narration: AI-generated voice.</div>"""
     return f"<!doctype html><html><head><meta charset='utf-8'><style>{CARD_CSS}</style></head><body><div class='wrap'>{body}</div></body></html>"
 
 
@@ -172,6 +178,27 @@ def enc(extra_in, filt, out, dur=None):
     run(cmd + [str(out)])
 
 
+def mix_audio(silent, starts):
+    """Mix each scene's narration in at scene start + LEAD, normalise to -16 LUFS (typical for
+    web video), and mux with the silent picture. starts = [(scene id, start s, voice s)]."""
+    voiced = [(sid, t0) for sid, t0, v in starts if v]
+    if not voiced:
+        run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(silent), "-c", "copy",
+             "-movflags", "+faststart", str(OUT)])
+        return
+    total = probe(silent)
+    ins, parts = [], []
+    for n, (sid, t0) in enumerate(voiced):
+        ins += ["-i", str(VOICE / f"{sid}.mp3")]
+        parts.append(f"[{n + 1}:a]adelay={int((t0 + LEAD) * 1000)}:all=1[a{n}]")
+    mix = ";".join(parts) + ";" + "".join(f"[a{n}]" for n in range(len(voiced))) + \
+        f"amix=inputs={len(voiced)}:normalize=0,loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000," \
+        f"apad,atrim=0:{total:.3f}[a]"
+    run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(silent), *ins, "-filter_complex", mix,
+         "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
+         "-movflags", "+faststart", str(OUT)])
+
+
 def content_bottom(png, w, h):
     """Last pixel row that is not page-white, read with ffmpeg (no imaging library needed)."""
     raw = subprocess.check_output(["ffmpeg", "-loglevel", "error", "-i", str(png), "-f", "rawvideo",
@@ -189,6 +216,16 @@ def srt_time(t):
 
 def main():
     os.chdir(ROOT)
+    if "--mix-only" in sys.argv:          # re-mix narration onto the last recorded picture
+        tl = json.loads((DEMO / "timeline.json").read_text())
+        for t in tl:
+            mp3 = VOICE / f"{t['id']}.mp3"
+            if mp3.exists() and probe(mp3) + LEAD > t["duration"]:
+                sys.exit(f"{t['id']}: narration is longer than the recorded scene; run a full build")
+        mix_audio(WORK / "silent.mp4", [(t["id"], t["start"], probe(VOICE / f"{t['id']}.mp3")
+                                         if (VOICE / f"{t['id']}.mp3").exists() else 0) for t in tl])
+        print(f"{OUT}  {probe(OUT):.2f}s  sha256 {hashlib.sha256(OUT.read_bytes()).hexdigest()}")
+        return
     for tool in ("vhs", "ffmpeg", "ffprobe", "Rscript"):
         if not shutil.which(tool):
             sys.exit(f"missing tool: {tool}")
@@ -197,6 +234,17 @@ def main():
     (ROOT / "artifacts").mkdir()
     run(["./scripts/run_tests.sh"])                          # fails the build if any test fails
     test_line = (ROOT / "artifacts" / "test-summary.txt").read_text().splitlines()[1].replace("testthat: ", "")
+    # Fit each scene to its narration.
+    for sc in SCENES:
+        mp3 = VOICE / f"{sc['id']}.mp3"
+        sc["voice"] = probe(mp3) if mp3.exists() else 0.0
+        need = sc["voice"] + LEAD + TAIL if sc["voice"] else 0.0
+        if sc["kind"] == "term":
+            base = sum(len(c) * 0.015 + 0.1 + p for c, p, _ in sc["steps"]) + sc["sleep"]
+            if need > base:
+                sc["sleep"] = round(sc["sleep"] + need - base + 0.05, 1)
+        else:
+            sc["secs"] = round(max(sc["secs"], need), 2)
     segs = []
     for sc in SCENES:
         seg = WORK / f"{sc['id']}.mp4"
@@ -243,8 +291,11 @@ def main():
 
     lst = WORK / "list.txt"
     lst.write_text("".join(f"file '{p}'\n" for _, p, _ in segs))
+    silent = WORK / "silent.mp4"
     run(["ffmpeg", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst),
-         "-c", "copy", "-movflags", "+faststart", str(OUT)])
+         "-c", "copy", str(silent)])
+    starts = [(sc["id"], sum(x[2] for x in segs[:i]), sc["voice"]) for i, (sc, _, _) in enumerate(segs)]
+    mix_audio(silent, starts)
 
     t, cues = 0.0, []
     for i, (sc, _, d) in enumerate(segs, 1):
@@ -252,7 +303,7 @@ def main():
         t += d
     (DEMO / "captions.srt").write_text("\n".join(cues))
     timeline = [{"id": sc["id"], "kind": sc["kind"], "start": round(sum(x[2] for x in segs[:i]), 2),
-                 "duration": round(d, 2), "realtime_ratio": sc.get("realtime_ratio"),
+                 "duration": round(d, 2), "voice": round(sc["voice"], 2), "realtime_ratio": sc.get("realtime_ratio"),
                  "commands": [c for c, _, _ in sc.get("steps", [])]} for i, (sc, _, d) in enumerate(segs)]
     (DEMO / "timeline.json").write_text(json.dumps(timeline, indent=1))
     sha = hashlib.sha256(OUT.read_bytes()).hexdigest()
